@@ -1,0 +1,56 @@
+#!/bin/bash
+###########################################################
+#                                                         #
+#   A modified version of the scaleway.com VPS banner.    #
+#   This version has been tested on                       #
+#   Debian 8.3 and CentOS 7.                              #
+#   Dependencies: figlet                                  #
+#                                                         #
+###########################################################
+export PATH="${PATH:+$PATH:}/bin:/usr/bin:/usr/local/bin"
+
+if [ -z "$DISTRIB_DESCRIPTION" ] && [ -x /usr/bin/lsb_release ]; then
+        # Fall back to using the very slow lsb_release utility
+        DISTRIB_DESCRIPTION=$(lsb_release -s -d)
+fi
+
+#Install figlet if not pre-installed
+fancy_host=`hostname|figlet`
+date=`date`
+load=`cat /proc/loadavg | awk '{print $1}'`
+root_usage=`df -h / | awk '/\// {print $(NF-1)}'`
+memory_usage=`free -m | awk '/Mem:/ { total=$2 } /buffers\/cache/ { used=$3 } END { printf("%3.1f%%", used/total*100)}'`
+swap_usage=`free -m | awk '/Swap/ { printf("%3.1f%%", "exit !$2;$3/$2*100") }'`
+users=`users | wc -w`
+time=`uptime | grep -ohe 'up .*' | sed 's/,/\ hours/g' | awk '{ printf $2" "$3 }'`
+processes=`ps aux | wc -l`
+ip=`ip addr | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1'`
+#Using curl instead of wget since it is included in all distributions.
+public_ip=$(curl -s http://ipecho.net/plain ; echo)
+
+KERNEL_VERSION=$(uname -r)
+if [[ $KERNEL_VERSION =~ ^3\.2\.[35][24].* ]]; then
+    KERNEL_TITLE="- Marvell"
+fi
+
+[ -f /etc/motd.head ] && cat /etc/motd.head || true
+
+printf "$fancy_host"
+printf "\n\n"
+printf "Welcome $USER on %s (%s %s %s %s)\n" "${IMAGE_DESCRIPTION}" "$(uname -o)" "${KERNEL_VERSION}" "$(uname -m)" "$KERNEL_TITLE"
+printf "\n"
+printf "System information as of: %s\n" "$date"
+printf "\n"
+printf "System load:\t%s\t\tInt IP Address:\t%s %s\n" $load $ip
+printf "Memory usage:\t%s\t\tPub IP Address:\t%s\n" $memory_usage $public_ip
+printf "Usage on /:\t%s\t\tSwap usage:\t%s\n" $root_usage $swap_usage
+printf "Local Users:\t%s\t\tProcesses:\t%s\n" $users $processes
+printf "System uptime:\t%s\n" "$time"
+printf "\n"
+
+df -h --output=source,avail|\
+tail -n+2 | sort|\
+awk 'BEGIN { print "Disk","\t\t\t\tAvailable";\
+print "----","\t\t\t\t---------"; };{print $0}'
+printf "\n\n"
+[ -f /etc/motd.tail ] && cat /etc/motd.tail || true
